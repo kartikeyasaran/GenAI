@@ -78,7 +78,7 @@ def create_knowledge_base(data):
     for document in data:
         if isinstance(document, str):
             tokens = preprocess_text(document)
-            embedding = np.mean([word2vec_model.wv.vectors[word2vec_model.key_to_index[word]] if word in word2vec_model.key_to_index else np.zeros(300) for word in tokens], axis=0)
+            embedding = np.mean([word2vec_model.vectors[word2vec_model.key_to_index[word]] if word in word2vec_model.key_to_index else np.zeros(300) for word in tokens], axis=0)
             if np.all(embedding == 0):  # Check if embedding is all zeros
                 continue
         else:
@@ -88,6 +88,11 @@ def create_knowledge_base(data):
 
     if not embeddings:
         print("No valid embeddings found in the data. Please check your data and word embedding model.")
+        return None  # Or handle the case differently (e.g., raise an exception)
+
+    # Ensure at least two valid embeddings before creating the index
+    if len(embeddings) <= 1:
+        print("Not enough valid embeddings to create knowledge base. Consider adding more documents or handling cases with a single document.")
         return None
 
     index = faiss.IndexFlatL2(len(embeddings[0]))
@@ -121,7 +126,7 @@ import PyPDF2
 # ... (rest of your code)
 
 # Example usage
-data = ['this is a string', 'another string', 'path/to/your/pdf.pdf']
+data = ['/workspaces/GenAI/Mathematics-Class-12-Part-2.pdf','Jack is runing','Grapes are sour in taste']
 
 for document in data:
     if isinstance(document, str):
