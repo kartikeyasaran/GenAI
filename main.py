@@ -1,39 +1,21 @@
 import nltk
 import faiss
+import torch
 import numpy as np
 from nltk.corpus import stopwords
 from nltk.stem import PorterStemmer
-import gensim.downloader as api
+from transformers import AutoTokenizer, AutoModel
 
 # Download required NLTK data
 nltk.download('punkt')
 nltk.download('stopwords')
 nltk.download('wordnet')
 
-# Download a pre-trained word embedding model
-try:
-    import gensim
-except ImportError:
-    print("Please install gensim using 'pip install gensim'")
-    exit()
+# Load pre-trained RoBERTa model and tokenizer
+model_name = "roberta-base"  # You can choose a different model if needed
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+model = AutoModel.from_pretrained(model_name)
 
-# Download required NLTK data
-nltk.download('punkt')
-nltk.download('stopwords')
-nltk.download('wordnet')
-
-# Download a pre-trained word embedding model
-try:
-    word2vec_model = api.load("word2vec-google-news-300")
-except Exception as e:
-    print("Error loading word2vec model:", e)
-    exit()
-
-# Check if model loaded correctly (optional)
-if hasattr(word2vec_model, 'vocab'):
-    print("Word2Vec model loaded successfully!")
-
-# Preprocess text
 def preprocess_text(text):
     # Tokenization
     tokens = nltk.word_tokenize(text)
@@ -45,18 +27,17 @@ def preprocess_text(text):
     stop_words = set(stopwords.words('english'))
     tokens = [word for word in tokens if word not in stop_words]
 
-     # Convert tokens to word embeddings (using Gensim 4.0+ methods)
-    embeddings = [word2vec_model.vectors[word2vec_model.key_to_index[word]] if word in word2vec_model.key_to_index else np.zeros(300)  # Or handle missing vectors differently
-                   for word in tokens]
+    # Convert tokens to word embeddings using RoBERTa
+    inputs = tokenizer(text, return_tensors="pt")
+    with torch.no_grad():
+        outputs = model(**inputs)
+        last_hidden_state = outputs.last_hidden_state
 
-    # If there are no embeddings (all zeros), return an empty list or handle the case
-    # If there are no embeddings (all zeros), return an empty list or handle the case
-    if all(embedding.all() == 0 for embedding in embeddings):
-        return []  # Or raise an exception
+    # Average the token embeddings to get a document embedding
+    document_embedding = torch.mean(last_hidden_state, dim=1).squeeze().numpy()
 
-    # Average the embeddings to create a document embedding
-    embedding = np.mean(embeddings, axis=0)
-    return embedding
+    return document_embedding
+
 
 def extract_keywords(document):
     # Tokenize and use TF-IDF to find important words
@@ -78,8 +59,9 @@ def create_knowledge_base(data):
     for document in data:
         if isinstance(document, str):
             tokens = preprocess_text(document)
-            embedding = np.mean([word2vec_model.vectors[word2vec_model.key_to_index[word]] if word in word2vec_model.key_to_index else np.zeros(300) for word in tokens], axis=0)
-            if np.all(embedding == 0):  # Check if embedding is all zeros
+            embedding = preprocess_text(document)
+            if np.all(embedding == 0):
+                print('all embeddings are zero')  # Check if embedding is all zeros
                 continue
         else:
             embedding = np.array(document)  # Assuming numerical data
@@ -126,8 +108,7 @@ import PyPDF2
 # ... (rest of your code)
 
 # Example usage
-data = ['/workspaces/GenAI/Mathematics-Class-12-Part-2.pdf','Jack is runing','Grapes are sour in taste']
-
+data = ['Jack is running so fast on the road','The grapes are sour in taste']
 for document in data:
     if isinstance(document, str):
         if document.endswith('.pdf'):
@@ -142,6 +123,8 @@ for document in data:
             pass
 
 knowledge_base = create_knowledge_base(data)
-query = input('>>>>>> ')
-answer = answer_query(query, knowledge_base)
-print(answer)
+while True :
+   query = input('>>>>>> ')
+   answer = answer_query(query, knowledge_base) 
+   print(answer)
+
